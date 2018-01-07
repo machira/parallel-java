@@ -1,0 +1,1 @@
+Projects and assignments from Coursera's Parallel Programming in Java. 
