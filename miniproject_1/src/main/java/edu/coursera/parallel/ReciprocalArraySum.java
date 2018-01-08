@@ -1,6 +1,12 @@
 package edu.coursera.parallel;
 
-import java.util.concurrent.RecursiveAction;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Class wrapping methods for implementing reciprocal array sum in parallel.
@@ -34,7 +40,7 @@ public final class ReciprocalArraySum {
      * Computes the size of each chunk, given the number of chunks to create
      * across a given number of elements.
      *
-     * @param nChunks The number of chunks to create
+     * @param nChunks   The number of chunks to create
      * @param nElements The number of elements to chunk across
      * @return The default chunk size
      */
@@ -47,14 +53,14 @@ public final class ReciprocalArraySum {
      * Computes the inclusive element index that the provided chunk starts at,
      * given there are a certain number of chunks.
      *
-     * @param chunk The chunk to compute the start of
-     * @param nChunks The number of chunks created
+     * @param chunk     The chunk to compute the start of
+     * @param nChunks   The number of chunks created
      * @param nElements The number of elements to chunk across
      * @return The inclusive index that this chunk starts at in the set of
-     *         nElements
+     * nElements
      */
     private static int getChunkStartInclusive(final int chunk,
-            final int nChunks, final int nElements) {
+                                              final int nChunks, final int nElements) {
         final int chunkSize = getChunkSize(nChunks, nElements);
         return chunk * chunkSize;
     }
@@ -63,13 +69,13 @@ public final class ReciprocalArraySum {
      * Computes the exclusive element index that the provided chunk ends at,
      * given there are a certain number of chunks.
      *
-     * @param chunk The chunk to compute the end of
-     * @param nChunks The number of chunks created
+     * @param chunk     The chunk to compute the end of
+     * @param nChunks   The number of chunks created
      * @param nElements The number of elements to chunk across
      * @return The exclusive end index for this chunk
      */
     private static int getChunkEndExclusive(final int chunk, final int nChunks,
-            final int nElements) {
+                                            final int nElements) {
         final int chunkSize = getChunkSize(nChunks, nElements);
         final int end = (chunk + 1) * chunkSize;
         if (end > nElements) {
@@ -103,13 +109,14 @@ public final class ReciprocalArraySum {
 
         /**
          * Constructor.
+         *
          * @param setStartIndexInclusive Set the starting index to begin
-         *        parallel traversal at.
-         * @param setEndIndexExclusive Set ending index for parallel traversal.
-         * @param setInput Input values
+         *                               parallel traversal at.
+         * @param setEndIndexExclusive   Set ending index for parallel traversal.
+         * @param setInput               Input values
          */
         ReciprocalArraySumTask(final int setStartIndexInclusive,
-                final int setEndIndexExclusive, final double[] setInput) {
+                               final int setEndIndexExclusive, final double[] setInput) {
             this.startIndexInclusive = setStartIndexInclusive;
             this.endIndexExclusive = setEndIndexExclusive;
             this.input = setInput;
@@ -117,6 +124,7 @@ public final class ReciprocalArraySum {
 
         /**
          * Getter for the value produced by this task.
+         *
          * @return Value produced by this task
          */
         public double getValue() {
@@ -141,14 +149,13 @@ public final class ReciprocalArraySum {
     protected static double parArraySum(final double[] input) {
         assert input.length % 2 == 0;
 
-        double sum = 0;
+        int mid = input.length / 2;
 
-        // Compute sum of reciprocals of array elements
-        for (int i = 0; i < input.length; i++) {
-            sum += 1 / input[i];
-        }
+        ParallelizableInverseSum sum1 = new ParallelizableInverseSum(0, mid, input);
+        ParallelizableInverseSum sum2 = new ParallelizableInverseSum(mid, input.length, input);
 
-        return sum;
+        sum1.fork();
+        return sum2.invoke() + sum1.join();
     }
 
     /**
@@ -157,19 +164,53 @@ public final class ReciprocalArraySum {
      * above utilities getChunkStartInclusive and getChunkEndExclusive helpful
      * in computing the range of element indices that belong to each chunk.
      *
-     * @param input Input array
+     * @param input    Input array
      * @param numTasks The number of tasks to create
      * @return The sum of the reciprocals of the array input
      */
-    protected static double parManyTaskArraySum(final double[] input,
-            final int numTasks) {
-        double sum = 0;
 
-        // Compute sum of reciprocals of array elements
-        for (int i = 0; i < input.length; i++) {
-            sum += 1 / input[i];
+
+    protected static <R> double parManyTaskArraySum(final double[] input,
+                                                    final int numTasks) {
+
+        List<RecursiveTask<Double>> taskList = new ArrayList<>(numTasks);
+
+        System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", String.valueOf(numTasks));
+        for (int i = 0; i < numTasks; i++) {
+            int start = getChunkStartInclusive(i, numTasks, input.length);
+            int end = getChunkEndExclusive(i, numTasks, input.length);
+            ParallelizableInverseSum sum = new ParallelizableInverseSum(start, end, input);
+            sum.fork();
+            taskList.add(i, sum);
         }
 
-        return sum;
+        return taskList.stream().mapToDouble(ForkJoinTask::join).sum();
+    }
+
+    static class ParallelizableInverseSum extends RecursiveTask<Double> {
+
+        private int i, j;
+        private double[] arr;
+        final int THRESHOLD = 500_000;
+
+        ParallelizableInverseSum(int i, int j, double[] arr) {
+            this.i = i;
+            this.j = j;
+            this.arr = arr;
+        }
+
+        @Override
+        protected Double compute() {
+            if ((j - i) <= THRESHOLD) {
+                return Arrays.stream(arr, i, j).map((a) -> 1 / a).sum();
+            }
+
+            ParallelizableInverseSum left = new ParallelizableInverseSum(i, ((i + j) / 2), arr);
+            left.fork();
+            ParallelizableInverseSum right = new ParallelizableInverseSum(((i + j) / 2), j, arr);
+
+            return right.compute() + left.join();
+
+        }
     }
 }
