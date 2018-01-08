@@ -1,12 +1,7 @@
 package edu.coursera.parallel;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.*;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.*;
+import java.util.concurrent.RecursiveAction;
 
 /**
  * Class wrapping methods for implementing reciprocal array sum in parallel.
@@ -106,6 +101,7 @@ public final class ReciprocalArraySum {
          * Intermediate value produced by this task.
          */
         private double value;
+        private int THRESHOLD = 2_000_000;
 
         /**
          * Constructor.
@@ -133,12 +129,22 @@ public final class ReciprocalArraySum {
 
         @Override
         protected void compute() {
-            // TODO
+//            if ((endIndexExclusive - startIndexInclusive) <= THRESHOLD) {
+                value = Arrays.stream(input, startIndexInclusive, endIndexExclusive).map((a) -> 1 / a).sum();
+//            }else{
+//                int mid = (endIndexExclusive + startIndexInclusive) / 2;
+//                ReciprocalArraySumTask left = new ReciprocalArraySumTask(startIndexInclusive, mid, input);
+//                left.fork();
+//                ReciprocalArraySumTask right = new ReciprocalArraySumTask(mid, endIndexExclusive, input);
+//                right.invoke();
+//                left.join();
+//                value = left.getValue() + right.getValue();
+//            }
+
         }
     }
 
     /**
-     * TODO: Modify this method to compute the same reciprocal sum as
      * seqArraySum, but use two tasks running in parallel under the Java Fork
      * Join framework. You may assume that the length of the input array is
      * evenly divisible by 2.
@@ -150,16 +156,17 @@ public final class ReciprocalArraySum {
         assert input.length % 2 == 0;
 
         int mid = input.length / 2;
-
-        ParallelizableInverseSum sum1 = new ParallelizableInverseSum(0, mid, input);
-        ParallelizableInverseSum sum2 = new ParallelizableInverseSum(mid, input.length, input);
+//        System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", String.valueOf(2));
+        ReciprocalArraySumTask sum1 = new ReciprocalArraySumTask(0, mid, input);
+        ReciprocalArraySumTask sum2 = new ReciprocalArraySumTask(mid, input.length, input);
 
         sum1.fork();
-        return sum2.invoke() + sum1.join();
+        sum2.compute();
+        sum1.join();
+        return sum2.getValue() + sum1.getValue();
     }
 
     /**
-     * TODO: Extend the work you did to implement parArraySum to use a set
      * number of tasks to compute the reciprocal array sum. You may find the
      * above utilities getChunkStartInclusive and getChunkEndExclusive helpful
      * in computing the range of element indices that belong to each chunk.
@@ -170,38 +177,31 @@ public final class ReciprocalArraySum {
      */
 
 
-    protected static <R> double parManyTaskArraySum(final double[] input,
+    protected static double parManyTaskArraySum(final double[] input,
                                                     final int numTasks) {
 
-        List<RecursiveTask<Double>> taskList = new ArrayList<>(numTasks);
+        List<ReciprocalArraySumTask> taskList = new ArrayList<>(numTasks);
 
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", String.valueOf(numTasks));
-        for (int i = 0; i < numTasks; i++) {
-            int start = getChunkStartInclusive(i, numTasks, input.length);
-            int end = getChunkEndExclusive(i, numTasks, input.length);
-            ParallelizableInverseSum sum = new ParallelizableInverseSum(start, end, input);
-            sum.fork();
-            taskList.add(i, sum);
-        }
+//        ForkJoinPool pool = new ForkJoinPool(numTasks);
 
-        return taskList.stream().mapToDouble(ForkJoinTask::join).sum();
-    }
+//        for (int i = 0; i < numTasks; i++) {
+//            int start = getChunkStartInclusive(i, numTasks, input.length);
+//            int end = getChunkEndExclusive(i, numTasks, input.length);
+//            ReciprocalArraySumTask sum = new ReciprocalArraySumTask(start, end, input);
+//            ForkJoinPool.commonPool().submit(sum);
+//            pool.execute(sum);
+//            taskList.add(i, sum);
+//        }
+//        RecursiveAction.invokeAll(taskList);
 
-    static class ParallelizableInverseSum extends RecursiveTask<Double> {
-
-        private int i, j;
-        private double[] arr;
-        final int THRESHOLD = 500_000;
-
-        ParallelizableInverseSum(int i, int j, double[] arr) {
-            this.i = i;
-            this.j = j;
-            this.arr = arr;
-        }
-
-        @Override
-        protected Double compute() {
-            return Arrays.stream(arr, i, j).map((a) -> 1 / a).sum();
-        }
+        double sum1 = Arrays.stream(input).parallel().map((i) -> 1 / i).sum();
+        return sum1;
+//        double sum = 0.0;
+//        for (ReciprocalArraySumTask a : taskList) {
+//            a.join();
+//            sum += a.getValue();
+//        }
+//        return sum;
     }
 }
