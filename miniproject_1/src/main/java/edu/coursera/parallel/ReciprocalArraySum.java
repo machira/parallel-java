@@ -201,16 +201,7 @@ public final class ReciprocalArraySum {
 
         @Override
         protected Double compute() {
-            if ((j - i) <= THRESHOLD) {
-                return Arrays.stream(arr, i, j).map((a) -> 1 / a).sum();
-            }
-
-            ParallelizableInverseSum left = new ParallelizableInverseSum(i, ((i + j) / 2), arr);
-            left.fork();
-            ParallelizableInverseSum right = new ParallelizableInverseSum(((i + j) / 2), j, arr);
-
-            return right.compute() + left.join();
-
+            return Arrays.stream(arr, i, j).map((a) -> 1 / a).sum();
         }
     }
 }
