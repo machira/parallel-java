@@ -183,25 +183,20 @@ public final class ReciprocalArraySum {
         List<ReciprocalArraySumTask> taskList = new ArrayList<>(numTasks);
 
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", String.valueOf(numTasks));
-//        ForkJoinPool pool = new ForkJoinPool(numTasks);
 
-//        for (int i = 0; i < numTasks; i++) {
-//            int start = getChunkStartInclusive(i, numTasks, input.length);
-//            int end = getChunkEndExclusive(i, numTasks, input.length);
-//            ReciprocalArraySumTask sum = new ReciprocalArraySumTask(start, end, input);
-//            ForkJoinPool.commonPool().submit(sum);
-//            pool.execute(sum);
-//            taskList.add(i, sum);
-//        }
-//        RecursiveAction.invokeAll(taskList);
+        for (int i = 0; i < numTasks; i++) {
+            int start = getChunkStartInclusive(i, numTasks, input.length);
+            int end = getChunkEndExclusive(i, numTasks, input.length);
+            ReciprocalArraySumTask sum = new ReciprocalArraySumTask(start, end, input);
+            taskList.add(i, sum);
+        }
+        RecursiveAction.invokeAll(taskList);
 
-        double sum1 = Arrays.stream(input).parallel().map((i) -> 1 / i).sum();
-        return sum1;
-//        double sum = 0.0;
-//        for (ReciprocalArraySumTask a : taskList) {
-//            a.join();
-//            sum += a.getValue();
-//        }
-//        return sum;
+        double sum = 0.0;
+        for (ReciprocalArraySumTask a : taskList) {
+            a.join();
+            sum += a.getValue();
+        }
+        return sum;
     }
 }
