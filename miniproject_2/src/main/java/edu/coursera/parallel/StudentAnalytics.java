@@ -44,8 +44,7 @@ public final class StudentAnalytics {
      */
     public double averageAgeOfEnrolledStudentsParallelStream(
             final Student[] studentArray) {
-        
-        throw new UnsupportedOperationException();
+        return Arrays.stream(studentArray).parallel().filter(Student::checkIsCurrent).collect(Collectors.averagingDouble(Student::getAge));
     }
 
     /**
@@ -88,6 +87,15 @@ public final class StudentAnalytics {
         return mostCommon;
     }
 
+
+    private String maxString(Map<String, Integer> collect, String a, String b) {
+        if (collect.getOrDefault(a, 0) < collect.getOrDefault(b, 0)) {
+            return b;
+        }
+        return a;
+
+    }
+
     /**
      * TODO compute the most common first name out of all students that are no
      * longer active in the class using parallel streams. This should mirror the
@@ -99,7 +107,11 @@ public final class StudentAnalytics {
      */
     public String mostCommonFirstNameOfInactiveStudentsParallelStream(
             final Student[] studentArray) {
-        throw new UnsupportedOperationException();
+        Map<String, Integer> collect = Arrays.stream(studentArray).parallel().filter(s -> !s.checkIsCurrent()).collect(Collectors.groupingBy(Student::getFirstName, Collectors.summingInt(s -> 1)));
+
+
+        Optional<String> reduce = collect.keySet().stream().reduce((a, b) -> maxString(collect, a, b));
+        return reduce.orElse("");
     }
 
     /**
@@ -135,6 +147,8 @@ public final class StudentAnalytics {
      */
     public int countNumberOfFailedStudentsOlderThan20ParallelStream(
             final Student[] studentArray) {
-        throw new UnsupportedOperationException();
+
+        return (int) Arrays.stream(studentArray).parallel().filter(s -> !s.checkIsCurrent() && s.getAge() > 20 && s.getGrade() < 65).count();
+
     }
 }
